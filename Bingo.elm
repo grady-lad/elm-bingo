@@ -3,6 +3,7 @@ module Bingo exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
+import Random
 
 
 -- Model
@@ -34,17 +35,31 @@ initialEntries =
 
 
 
+-- Messages
+
+
+type Msg
+    = NewGame
+    | Mark Int
+    | NewRandom Int
+
+
+
 -- Update
 
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        NewRandom randomNumber ->
+            ( { model | gameNumber = randomNumber }, Cmd.none )
+
         NewGame ->
-            { model
-                | gameNumber = model.gameNumber + 1
-                , entries = initialEntries
-            }
+            ( { model
+                | entries = initialEntries
+              }
+            , generateRandomNumber
+            )
 
         Mark id ->
             let
@@ -54,16 +69,37 @@ update msg model =
                     else
                         e
             in
-                { model | entries = List.map markEntry model.entries }
+                ( { model | entries = List.map markEntry model.entries }, Cmd.none )
 
 
-type Msg
-    = NewGame
-    | Mark Int
+
+-- Commands
+
+
+generateRandomNumber : Cmd Msg
+generateRandomNumber =
+    Random.generate (\num -> NewRandom num) (Random.int 1 100)
 
 
 
 -- View
+
+
+sumMarkedPoints : List Entry -> Int
+sumMarkedPoints entries =
+    entries
+        |> List.filter .marked
+        |> List.map .points
+        |> List.sum
+
+
+viewScore : Int -> Html msg
+viewScore sum =
+    div
+        [ class "score" ]
+        [ span [ class "label" ] [ text "Score" ]
+        , span [ class "value" ] [ text (toString sum) ]
+        ]
 
 
 playerInfo : String -> Int -> String
@@ -120,6 +156,7 @@ view model =
         [ viewHeader "BUZZWORD BING"
         , viewPlayer model.name model.gameNumber
         , viewEntryList model.entries
+        , viewScore (sumMarkedPoints model.entries)
         , button [ onClick NewGame ] [ text "New Game" ]
         , div [ class "debug" ] [ text (toString model) ]
         , viewFooter
@@ -128,8 +165,9 @@ view model =
 
 main : Program Never Model Msg
 main =
-    Html.beginnerProgram
-        { model = initialModel
+    Html.program
+        { init = ( initialModel, generateRandomNumber )
         , view = view
         , update = update
+        , subscriptions = (\model -> Sub.none)
         }
